@@ -33,7 +33,7 @@ The parameters are on [Zenodo](https://doi.org/10.5281/zenodo.24476230); downloa
 ## Sample a model
 
     python main.py parameters/square_j1j2/L12_layers2
-    python main.py parameters/square_j1j2/L20_layers8 --N_steps 100 --dtype float32
+    python main.py parameters/square_j1j2/L20_layers8 --N_steps 100
 
 The Markov chains start from the stored walkers. At every step (one sweep per chain) `main.py` prints E/N and the
 V-score N Var(E)/E^2, and at the end their values over all samples, next to those of the last 100 training steps.
@@ -42,7 +42,6 @@ V-score N Var(E)/E^2, and at the end their values over all samples, next to thos
 |---|---|---|
 | `--N_mc` | 16384 | Markov chains, at most 16384 (the largest models need about 20 GB of GPU memory) |
 | `--N_steps` | 10 | samples per chain |
-| `--dtype` | float64 | float32 is much faster on GPUs with slow float64 |
 | `--seed` | 0 | |
 
 On several GPUs, start one process per GPU: `srun python main.py ...`.

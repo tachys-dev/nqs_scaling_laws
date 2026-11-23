@@ -1,7 +1,7 @@
 """Samples |psi|^2 of a trained model and prints E/N, Var(E)/N and the V-score N Var(E) / E^2.
 
     python main.py parameters/square_j1j2/L12_layers2
-    python main.py parameters/square_j1j2/L12_layers2 --N_steps 100 --dtype float32
+    python main.py parameters/square_j1j2/L12_layers2 --N_steps 100
 
 On several GPUs, start one process per GPU (srun python main.py ..., mpirun -np 4 python main.py ...).
 """
@@ -23,15 +23,12 @@ from tachys.lattice.spins.spin_state import SpinState
 from tachys.montecarlo import sample
 from tachys.wavefunction import WaveFunction
 
-# full float32 matmuls: the default TF32 of recent GPUs ruins the local energies
-jax.config.update('jax_default_matmul_precision', 'highest')
-
 # lattice, first- and second-neighbour displacements in units of a1 and a2
 GEOMETRY = {'square': (square, [(1, 0), (0, 1)], [(1, 1), (1, -1)]),
             'triangular': (triangular, [(1, 0), (0, 1), (1, -1)], [(1, 1), (2, -1), (1, -2)])}
 
 
-def load_model(folder, dtype=jnp.float64):
+def load_model(folder):
     """config (dict), lattice, Hamiltonian, WaveFunction and stored walkers of the model in `folder`.
 
     walkers: (16384, L*L) int8 spins (+-1), the training's Markov chains at its last step.
@@ -49,11 +46,10 @@ def load_model(folder, dtype=jnp.float64):
         bonds += [(d, h['J2']) for d in nn2]
     H = heisenberg_hamiltonian(lattice, nn=bonds)
 
-    model = ViT(num_layers=m['num_layers'], d_model=m['d_model'], heads=m['heads'], L=L, b=m['b'], real=m['real'],
-                dtype=dtype)
+    model = ViT(num_layers=m['num_layers'], d_model=m['d_model'], heads=m['heads'], L=L, b=m['b'], real=m['real'])
     with open(os.path.join(folder, 'params.msgpack'), 'rb') as f:
         params = serialization.msgpack_restore(f.read())
-    wf = WaveFunction(params=jax.tree.map(lambda x: jnp.asarray(x, dtype), params), apply_fn=model.apply, dtype=dtype)
+    wf = WaveFunction(params=jax.tree.map(jnp.asarray, params), apply_fn=model.apply)
 
     up = np.load(os.path.join(folder, 'walkers.npz'))['up']
     walkers = 2 * np.unpackbits(up, axis=1, count=L * L).astype(np.int8) - 1
@@ -65,11 +61,10 @@ def main():
     parser.add_argument('model', help='a model folder, e.g. parameters/square_j1j2/L12_layers2')
     parser.add_argument('--N_mc', type=int, default=16384, help='Markov chains, started from the stored walkers')
     parser.add_argument('--N_steps', type=int, default=10, help='samples per chain, one sweep apart')
-    parser.add_argument('--dtype', default='float64', choices=['float64', 'float32'])
     parser.add_argument('--seed', type=int, default=0)
     args = parser.parse_args()
 
-    cfg, lattice, H, wf, walkers = load_model(args.model, jnp.dtype(args.dtype))
+    cfg, lattice, H, wf, walkers = load_model(args.model)
     N = lattice.Ns
     state = SpinState(spins=jnp.asarray(walkers[:args.N_mc]), lattice=lattice)
     action = BondExchange.create(lattice, max_dist=2)     # exchanges two opposite spins, first or second neighbours
